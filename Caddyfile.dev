@@ -1,0 +1,39 @@
+# Utilisation de Caddy comme reverse proxy
+
+:443 {
+    # Certificats mkcert
+    tls /etc/caddy/certs/local-cert.pem /etc/caddy/certs/local-key.pem
+
+    # Symfony - API
+    handle /api/* {
+        reverse_proxy http://php:80
+    }
+
+    # Symfony - Images Vich
+    handle /images/* {
+        reverse_proxy http://php:80
+    }
+
+    # EasyAdmin
+    handle /admin* {
+        basic_auth * {
+            admin $2a$14$QDvKcvInVqn1iQSU89tygu.ew2MC1UCh.C/.vBZR..TeePm8lDLvC
+        }
+        reverse_proxy http://php:80
+    }
+
+    # Stripe
+    handle /stripe/* {
+        reverse_proxy http://php:80
+    }
+
+    # Profiler
+    handle /_profiler/* {
+        reverse_proxy http://php:80
+    }
+
+    # Next.js
+    handle {
+        reverse_proxy http://frontend:3000
+    }
+}

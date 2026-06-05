@@ -1,0 +1,55 @@
+---
+# Development environment override
+services:
+# Symfony application running on FrankenPHP
+  php:
+    image: ${IMAGES_PREFIX:-}app-php-dev
+    build:
+      context: .
+      target: frankenphp_dev
+    volumes:
+      - ./:/app
+      - ./frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro
+      - ./frankenphp/conf.d/20-app.dev.ini:/usr/local/etc/php/app.conf.d/20-app.dev.ini:ro
+      - /app/var
+    env_file:
+      - .env
+      - .env.local
+    environment:
+      SERVER_NAME: ":80"
+      FRANKENPHP_WORKER_CONFIG: watch
+      FRANKENPHP_SITE_CONFIG: hot_reload
+      MERCURE_EXTRA_DIRECTIVES: demo
+      XDEBUG_MODE: "${XDEBUG_MODE:-develop}"
+      APP_ENV: "${APP_ENV:-dev}"
+    extra_hosts:
+      # Ensure that host.docker.internal is correctly defined on Linux
+      - host.docker.internal:host-gateway
+    tty: true
+
+  # Next.js frontend
+  frontend:
+    image: template_react_symfony-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    expose:
+      - "3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/next.config.ts:/app/next.config.ts
+      - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+
+  # Caddy reverse proxy for development
+  proxy:
+    image: caddy:alpine
+    ports:
+      - "8000:443"
+    volumes:
+    - ./Caddyfile.dev:/etc/caddy/Caddyfile
+    - ./certs:/etc/caddy/certs
+    depends_on:
+    - php
+    - frontend
+      
