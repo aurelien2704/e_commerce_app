@@ -81,16 +81,16 @@ jobs:
         run: docker compose exec -T php bin/console -e test doctrine:database:create
 
       # Doctrine Migrations : Will be enabled when there will be at least one migration in the database
-      # - name: Run migrations
-      #   run: docker compose exec -T php bin/console -e test doctrine:migrations:migrate --no-interaction
+      - name: Run migrations
+        run: docker compose exec -T php bin/console -e test doctrine:migrations:migrate --no-interaction
 
       # PHPUnit tests
       - name: Run PHPUnit
         run: docker compose exec -T php bin/phpunit
 
       # Doctrine ORM validator : Will be enabled when there will be at least one entity in the database
-      # - name: Doctrine Schema Validator
-      #   run: docker compose exec -T php bin/console -e test doctrine:schema:validate
+      - name: Doctrine Schema Validator
+        run: docker compose exec -T php bin/console -e test doctrine:schema:validate
 
       # The linter will be enabled at the end of the development phase, when the code base will be more stable
 
