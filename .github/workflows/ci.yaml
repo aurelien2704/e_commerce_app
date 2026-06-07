@@ -1,0 +1,122 @@
+---
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request: ~
+  workflow_dispatch: ~
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE_PROJECT_NAME: template_react_symfony
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # Docker Buildx setup and build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      #  .env files are required for the build
+      - name: Create .env.local for Symfony
+        run: |
+          cat > .env.local << EOF
+          APP_ENV=test
+          APP_SECRET=${{ secrets.APP_SECRET }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          JWT_PASSPHRASE=${{ secrets.JWT_PASSPHRASE }}
+          MAILER_DSN=${{ secrets.MAILER_DSN }}
+          CADDY_MERCURE_JWT_SECRET=${{ secrets.CADDY_MERCURE_JWT_SECRET }}
+          EOF
+      # Docker images
+      - name: Build Docker images
+        uses: docker/bake-action@v7
+        with:
+          pull: true
+          load: true
+          source: .
+          files: |
+            compose.yaml
+            compose.override.yaml
+          set: |
+            *.cache-from=type=gha,scope=${{github.ref}}
+            *.cache-from=type=gha,scope=refs/heads/main
+            *.cache-to=type=gha,scope=${{github.ref}},mode=max
+      - name: Start services
+        run: docker compose up --wait --no-build
+
+        # Composer dependencies
+      - name: Install Composer dependencies
+        run: docker compose exec -T php composer install --no-interaction --no-scripts
+        # Cache clear in env test
+      - name: Clear cache
+        run: docker compose exec -T php bin/console cache:clear --env=test
+
+      # HTTPS and Mercure
+      # - name: Check HTTPS reachability
+      #   run: curl -v --insecure --fail-with-body https://localhost
+      # - name: Check Mercure reachability
+      #   run: curl -vI --insecure --fail-with-body https://localhost/.well-known/mercure?topic=test
+
+       # JWT keys generation
+      - name: Generate JWT keys
+        run: docker compose exec -T php bin/console lexik:jwt:generate-keypair --skip-if-exists
+
+      # Doctrine ORM database setup
+      - name: Create test database
+        run: docker compose exec -T php bin/console -e test doctrine:database:create
+
+      # Doctrine Migrations : Will be enabled when there will be at least one migration in the database
+      # - name: Run migrations
+      #   run: docker compose exec -T php bin/console -e test doctrine:migrations:migrate --no-interaction
+
+      # PHPUnit tests
+      - name: Run PHPUnit
+        run: docker compose exec -T php bin/phpunit
+
+      # Doctrine ORM validator : Will be enabled when there will be at least one entity in the database
+      # - name: Doctrine Schema Validator
+      #   run: docker compose exec -T php bin/console -e test doctrine:schema:validate
+
+      # The linter will be enabled at the end of the development phase, when the code base will be more stable
+
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     packages: read
+  #     statuses: write
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v6
+  #       with:
+  #         fetch-depth: 0
+  #         persist-credentials: false
+
+  #     - name: Lint Code Base
+  #       uses: super-linter/super-linter/slim@v8
+  #       env:
+  #         GITHUB_ACTIONS_CONFIG_FILE: actionlint.yaml
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         VALIDATE_CHECKOV: false
+  #         VALIDATE_TRIVY: false
+  #         VALIDATE_BIOME_FORMAT: false
+  #         VALIDATE_BIOME_LINT: false
+  #         VALIDATE_PHP_PHPSTAN: false
+  #         VALIDATE_PHP_PSALM: false
+  #         VALIDATE_PHP_PHPCS: false
