@@ -23,7 +23,7 @@ jobs:
       COMPOSE_PROJECT_NAME: template_react_symfony
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       # Docker Buildx setup and build
@@ -103,7 +103,7 @@ jobs:
   #     statuses: write
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@v6
+  #       uses: actions/checkout@v7
   #       with:
   #         fetch-depth: 0
   #         persist-credentials: false
